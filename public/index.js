@@ -307,6 +307,17 @@ canvas.onmouseup = e => {
   if (mode === 'pan') canvas.style.cursor = '-webkit-grab'
 }
 
+window.onkeydown = e => {
+  //console.log(e.keyCode)
+  if (e.keyCode === 32 && mode === 'paint') setMode('pan') // space
+
+}
+
+window.onkeyup = e => {
+  if (e.keyCode === 32 && mode === 'pan') setMode('paint') // space
+}
+
+
 window.onwheel = e => {
   updateMousePos(e)
   if (e.shiftKey || e.ctrlKey) {
