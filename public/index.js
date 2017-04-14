@@ -6,9 +6,13 @@ const imgctx = imgCanvas.getContext('2d')
 
 // Actual canvas drawn to the screen.
 const canvas = document.getElementsByTagName('canvas')[0]
-const ctx = canvas.getContext('2d')
-ctx.imageSmoothingEnabled = false
+let ctx
 
+const elems = {}
+
+;['toolbar', 'pantool', 'position'].forEach(name => elems[name] = document.getElementById(name))
+
+const toolbarelems = [elems.pantool]
 
 const palette = [
   [255, 255, 255], // white
@@ -33,6 +37,7 @@ const palette = [
 
   [163, 105, 170], // brown
 ]
+
 
 const clamp = (x, min, max) => Math.max(Math.min(x, max), min);
 
@@ -121,27 +126,31 @@ class View {
   }
 
   clampFrame() {
+    // Clamp the visible area so the middle of the screen always has content.
     const imgwidth = 1000 * this.size
     const visX = this.width / this.size
     const visY = this.height / this.size
 
     if (imgwidth > this.width)
-      this.scrollX = clamp(this.scrollX, 0, 1000 - visX)
+      this.scrollX = clamp(this.scrollX, -visX/2, 1000 - visX/2)
     else
-      this.scrollX = clamp(this.scrollX, 1000 - visX, 0)
+      this.scrollX = clamp(this.scrollX, 500 - visX, 500)
 
     if (imgwidth > this.height)
-      this.scrollY = clamp(this.scrollY, 0, 1000 - visY)
+      this.scrollY = clamp(this.scrollY, -visX/2, 1000 - visY/2)
     else
-      this.scrollY = clamp(this.scrollY, 1000 - visY, 0)
+      this.scrollY = clamp(this.scrollY, 500 - visY, 500)
   }
 
   resizeTo(width, height) {
     this.width = width
     this.height = height
 
-    canvas.width = width
-    canvas.height = height
+    canvas.width = width * devicePixelRatio
+    canvas.height = height * devicePixelRatio
+    ctx = canvas.getContext('2d')
+    ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+
     // TODO: Scale based on devicePixelRatio.
     draw()
   }
@@ -161,7 +170,6 @@ class View {
   }
 
   worldToScreen(tx, ty) {
-    if (tx == null) return {px:null, py:null}
     return {
       px: tx * this.size - Math.floor(this.scrollX * this.size),
       py: ty * this.size - Math.floor(this.scrollY * this.size)
@@ -171,6 +179,48 @@ class View {
 
 // Current color tool.
 let brush = 0
+let mode = null
+const setMode = (newMode) => {
+  mode = newMode
+  if (mode === 'pan') {
+    canvas.style.cursor = '-webkit-grab'
+    elems.pantool.className = 'enabled'
+  }
+  else {
+    canvas.style.cursor = 'crosshair'
+    elems.pantool.className = ''
+  }
+}
+
+setMode('pan') // 'pan', 'paint'.
+
+const setEnabledElem = enabledelem => {
+  toolbarelems.forEach(e => e.className = (e === enabledelem) ? 'enabled' : '')
+}
+
+elems.pantool.onclick = () => {
+  setMode('pan')
+  setEnabledElem(elems.pantool)
+}
+
+{
+  // Add brush tools.
+  for (let i = 0; i < 16; i++) {
+    const elem = document.createElement('div')
+    const c = palette[i]
+    elem.style.backgroundColor = `rgb(${c[0]}, ${c[1]}, ${c[2]})`
+    elem.style.height = '30px'
+    ;(i => elem.onclick = () => {
+      setMode('paint')
+      brush = i
+      setEnabledElem(elem)
+    })(i)
+
+    toolbarelems.push(elem)
+    elems.toolbar.appendChild(elem)
+  }
+}
+
 
 let needsDraw = false
 const view = new View(0, 0)
@@ -207,11 +257,32 @@ const updateMousePos = (e) => {
 canvas.onmousedown = e => {
   updateMousePos(e)
 
-  const {tx, ty} = mouse
-  if (tx < 0 || tx >= 1000 || ty < 0 || ty >= 1000) return
+  if (mode === 'paint') {
+    const {tx, ty} = mouse
+    if (tx < 0 || tx >= 1000 || ty < 0 || ty >= 1000) return
 
-  fetch(`/edit?x=${tx}&y=${ty}&c=${brush}`, {method: 'POST'})
-  draw()
+    fetch(`/edit?x=${tx}&y=${ty}&c=${brush}`, {method: 'POST'})
+    draw()
+  } else if (mode === 'pan') {
+    canvas.style.cursor = '-webkit-grabbing'
+  }
+  e.preventDefault();
+}
+
+canvas.onmousemove = e => {
+  if (updateMousePos(e)) {
+
+    elems.position.textContent = `(${mouse.tx}, ${mouse.ty})`
+  }
+
+  if (e.which && mode === 'pan') {
+    view.scrollBy(-mouse.dx, -mouse.dy)
+    draw()
+  }
+}
+
+canvas.onmouseup = e => {
+  if (mode === 'pan') canvas.style.cursor = '-webkit-grab'
 }
 
 window.onwheel = e => {
@@ -231,7 +302,8 @@ function draw() {
   if (needsDraw) return
   needsDraw = true
   requestAnimationFrame(() => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.fillStyle = '#eee'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
 
     ctx.save()
     ctx.imageSmoothingEnabled = false
@@ -247,8 +319,7 @@ function draw() {
   })
 }
 
-// Lets just start with hotpink everywhere until we load.
-imgctx.fillStyle = 'hotpink'
+imgctx.fillStyle = 'grey'
 imgctx.fillRect(0, 0, 1000, 1000)
 draw()
 
@@ -271,7 +342,7 @@ fetch('/current').then(res => {
 
       eventsource.onmessage = msg => {
         const [x, y, coloridx] = JSON.parse(msg.data)
-        console.log('set', x, y, coloridx)
+        //console.log('set', x, y, coloridx)
         const color = palette[coloridx]
         d[0] = color[0]
         d[1] = color[1]

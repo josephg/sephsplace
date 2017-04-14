@@ -6,6 +6,7 @@
 body, html {
   width: 100%; height: 100%; padding: 0; margin: 0;
   box-sizing: border-box;
+  font-family: monospace;
 }
 
 * { box-sizing: inherit; }
@@ -14,16 +15,49 @@ canvas {
   position: absolute;
   top: 0; left: 0;
   width: 100%; height: 100%;
-  cursor: crosshair;
+}
 
-  image-rendering: optimizeSpeed;             /* Older versions of FF          */
-  image-rendering: -moz-crisp-edges;          /* FF 6.0+                       */
-  image-rendering: -webkit-optimize-contrast; /* Safari                        */
-  image-rendering: -o-crisp-edges;            /* OS X & Windows Opera (12.02+) */
-  image-rendering: pixelated;                 /* Awesome future-browsers       */
-  -ms-interpolation-mode: nearest-neighbor;   /* IE                            */
+#toolbar {
+  position: fixed;
+  left: 30px;
+  top: 30px;
+}
+
+#toolbar > div {
+  display: block;
+  width: 50px;
+  height: 50px;
+  background: #333;
+  margin-bottom: 4px;
+  border-radius: 10px 12px;
+  background: #fff;
+  border: 3px solid rgba(0,0,0,0.2)
+}
+
+#toolbar > div.enabled {
+  border: 5px black inset;
+}
+
+#pantool {
+  margin-bottom: 4px;
+}
+
+#pantool > img { width: 100%; height: 100% }
+
+#position {
+  position: fixed;
+  bottom: 30px;
+  left: 30px;
+  background: rgba(255,255,255,0.5);
+  padding: 3px;
+  user-select: none;
 }
 
 </style>
 <canvas width=1000 height=1000></canvas>
+<div id='toolbar'>
+  <div id='pantool'><img src='DPAD_all.png'></div>
+</div>
+
+<div id='position'>(0, 0)</div>
 <script src=index.js></script>
