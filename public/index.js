@@ -263,10 +263,26 @@ canvas.onmousedown = e => {
     const {tx, ty} = mouse
     if (tx < 0 || tx >= 1000 || ty < 0 || ty >= 1000) return
 
-    // Ok, so this is going to totally mess with the 
-    
+    // Ok, so this is a pretty crappy speculative editing implementation. A
+    // 'better' way to do it would be to have an overlay or something. But
+    // because when we see our op we'll overwrite the current cell, this should
+    // work ok.
+    if (isConnected) {
+      const imagedata = imgctx.createImageData(1, 1)
+      const d = imagedata.data
 
+      const color = palette[brush]
+      d[0] = color[0]
+      d[1] = color[1]
+      d[2] = color[2]
+      d[3] = 150 // not with full opacity.
+      imgctx.putImageData(imagedata, tx, ty)
+    }
+
+    // Put this in a timeout to test the speculative drawing.
     fetch(`/edit?x=${tx}&y=${ty}&c=${brush}`, {method: 'POST'})
+    // TODO: If the fetch errors, undo the speculative edit display
+
     draw()
   } else if (mode === 'pan') {
     canvas.style.cursor = '-webkit-grabbing'
@@ -278,6 +294,8 @@ canvas.onmousemove = e => {
   if (updateMousePos(e)) {
 
     elems.position.textContent = `(${mouse.tx}, ${mouse.ty})`
+
+    if (mode === 'paint') draw() // So we can draw the edit hover.
   }
 
   if (e.which && mode === 'pan') {
@@ -317,6 +335,12 @@ function draw() {
     //const {px, py} = view.worldToScreen(0, 0)
     ctx.translate(-view.scrollX, -view.scrollY)
     ctx.drawImage(imgCanvas, 0, 0)
+
+    if (mode === 'paint') {
+      const c = palette[brush]
+      ctx.fillStyle = `rgba(${c[0]}, ${c[1]}, ${c[2]}, 0.5)`
+      ctx.fillRect(mouse.tx + 0.1, mouse.ty + 0.1, 0.8, 0.8)
+    }
     ctx.restore()
     //ctx.drawImage(imgCanvas, 0, 0, 10000, 10000)
   
