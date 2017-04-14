@@ -163,7 +163,7 @@ setInterval(() => {
   // Trim the op buffer down to size. The buffer only needs to store ops for
   // the amount of cache time + expected latency time.
   
-  console.log('opbase', opbase, 'opbuffer', opbuffer.length)
+  //console.log('opbase', opbase, 'opbuffer', opbuffer.length)
   const newhead = opbase + opbuffer.length
 
   if (lasthead === 0) {
@@ -176,7 +176,7 @@ setInterval(() => {
   opbuffer.splice(0, lasthead - opbase)
   opbase = lasthead
   lasthead = newhead
-  console.log('-> opbase', opbase, 'opbuffer', opbuffer.length, 'lasthead', lasthead)
+  //console.log('-> opbase', opbase, 'opbuffer', opbuffer.length, 'lasthead', lasthead)
 }, 20000)
 
 const esclients = new Set
