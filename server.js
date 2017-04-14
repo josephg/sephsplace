@@ -14,13 +14,15 @@ const lmdb = require('node-lmdb')
 const msgpack = require('msgpack-lite')
 const assert = require('assert')
 
-const app = require('express')()
-
 const PNG = require('pngjs').PNG
 
 const kafka = require('kafka-node')
 
 
+const kclient = new kafka.Client()
+const express = require('express')
+const app = express()
+app.use(express.static(__dirname + '/public'))
 
 // This is important so we can hot-resume when the server starts without
 // needing to read the entire kafka log. A file would almost be good enough,
@@ -86,6 +88,9 @@ const palettePacked = palette.map(arr =>
   (arr[2] << 16) | (arr[1] << 8) | (arr[0])
 )*/
 
+// This is an RGB buffer kept up to date with each edit to the indexed buffer.
+// Maintaining this makes encoding the png a bit faster (320ms -> 250ms),
+// although I'm not sure if the complexity is really worth it.
 const imgBuffer = new Buffer(1000 * 1000 * 3)
 
 {
@@ -94,7 +99,6 @@ const imgBuffer = new Buffer(1000 * 1000 * 3)
       const px = y * 1000 + x
       
       const color = palette[imgData[px]]
-      //console.log(px, imgData[px], palette[imgData[px]])
       imgBuffer[px*3] = color[0]
       imgBuffer[px*3+1] = color[1]
       imgBuffer[px*3+2] = color[2]
@@ -113,21 +117,16 @@ const setRaw = (x, y, index) => {
 }
 
 const randInt = max => (Math.random() * max) | 0
-/*
-{
-  imgBuffer.fill(0xcc)
-  for (let i = 0; i < 1000000; i++) setRaw(randInt(1000), randInt(1000), randInt(16))
-}*/
 
 app.get('/current', (req, res) => {
   // This takes about 300ms to load.
   res.setHeader('content-type', 'image/png')
   res.setHeader('x-content-version', version)
 
-  // It'd be nice to build an indexed color png, but whatever.
+  // TODO: Find a PNG encoder which supports indexed pngs. It'll be way faster that way.
   const img = new PNG({
     width: 1000, height: 1000,
-    colorType: 2,
+    colorType: 2, // color but no alpha
     bitDepth: 8,
     inputHasAlpha: false,
   })
@@ -136,8 +135,48 @@ app.get('/current', (req, res) => {
   img.pack().pipe(res)
 })
 
+// This is a buffer containing a bunch of recent operations. 
+let opbase = 0
+const opbuffer = []
 
-const kclient = new kafka.Client()
+const esclients = new Set
+
+app.get('/changes', (req, res, next) => {
+  // TODO: Add a local buffer and serve recent operations out of that.
+  res.setHeader('content-type', 'text/event-stream')
+  res.setHeader('cache-control', 'no-cache')
+  res.setHeader('connection', 'keep-alive')
+
+  res.write('retry: 5000\n')
+  res.write('\n')
+
+  // TODO: Use 'Last-Event-ID' header instead
+  console.log('SSE', req.headers)
+  const fromstr = req.headers['last-event-id'] || req.query.from
+
+  if (fromstr == null || isNaN(+fromstr)) return next(Error('Invalid from= parameter'))
+  const from = (fromstr|0) + 1
+  console.log('from', from)
+  //console.log('changes', req.query)
+
+  const listener = (v, arr) => {
+    // arr should be version, x, y, color idx.
+    res.write(`id: ${v}\n`)
+    res.write(`data: ${JSON.stringify(arr)}\n\n`)
+  }
+
+  if (from < opbase) return next(Error('requested version too old'))
+
+  for (let i = from - opbase; i < opbuffer.length; i++) listener(i + opbase, opbuffer[i])
+
+  esclients.add(listener)
+
+  res.on('close', () => {
+    console.log('response close')
+    esclients.delete(listener)
+  })
+})
+
 const kproducer = new kafka.Producer(kclient)
 app.post('/edit', (req, res) => {
   kproducer.send([{
@@ -150,30 +189,44 @@ app.post('/edit', (req, res) => {
   })
 })
 
-const kconsumer = new kafka.Consumer(kclient, [{topic: 'test', offset: version + 1}], {
+// Buffer up 1000 operations from the server.
+opbase = Math.max(version - 1000, 0)
+const kconsumer = new kafka.Consumer(kclient, [{topic: 'test', offset: opbase}], {
   encoding: 'buffer',
   fromOffset: true,
 })
 kconsumer.on('message', msg => {
   const [type, x, y, color] = msgpack.decode(msg.value)
-  console.log('got message', x, y, color, msg)
 
-  for (let x = 0; x < 100; x++) {
-    for (let y = 0; y < 100; y++) {
-      setRaw(x, y, color)
+  assert(msg.offset === opbase + opbuffer.length)
+  const msgout = [x, y, color]
+  opbuffer[msg.offset - opbase] = msgout
+
+  if (msg.offset > version) {
+    console.log('got message v=', msg.offset, x, y, color, msg)
+
+    // Doing it in a big patch for now so its easy to test
+    for (let x = 0; x < 100; x++) {
+      for (let y = 0; y < 100; y++) {
+        setRaw(x, y, color)
+      }
     }
-  }
 
-  version = msg.offset
+    assert(msg.offset === version + 1)
 
-  if (version % 10 === 0) {
-    // Commit the updated data.
-    console.log('committing version', msg.offset)
+    version = msg.offset
 
-    const txn = dbenv.beginTxn()
-    txn.putBinary(snapshotdb, 'current', imgData)
-    txn.putNumber(snapshotdb, 'version', msg.offset)
-    txn.commit()
+    if (version % 10 === 0) {
+      // Commit the updated data.
+      console.log('committing version', msg.offset)
+
+      const txn = dbenv.beginTxn()
+      txn.putBinary(snapshotdb, 'current', imgData)
+      txn.putNumber(snapshotdb, 'version', msg.offset)
+      txn.commit()
+    }
+
+    for (const l of esclients) l(msg.offset, msgout)
   }
 
 })
