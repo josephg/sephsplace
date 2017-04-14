@@ -125,7 +125,9 @@ app.get('/current', (req, res) => {
   const resHeaders = {
     // Weirdly, setting this to a lower value is sort of good because it means
     // we won't have to keep as many clients up to date.
-    'cache-control': 'public; max-age=300'
+    //'cache-control': 'public; max-age=300',
+    'expires': new Date(Date.now() + 10 * 1000).toUTCString(), // 10 seconds.
+    //'age': '0',
   }
 
   if (fresh(req.headers, resHeaders)) {
@@ -156,11 +158,26 @@ app.get('/current', (req, res) => {
 let opbase = 0
 const opbuffer = []
 
+let lasthead = 0
 setInterval(() => {
   // Trim the op buffer down to size. The buffer only needs to store ops for
   // the amount of cache time + expected latency time.
+  
+  console.log('opbase', opbase, 'opbuffer', opbuffer.length)
+  const newhead = opbase + opbuffer.length
 
-}, 5000)
+  if (lasthead === 0) {
+    // First time through.
+    lasthead = newhead
+    return
+  }
+
+  // Trim everything from opbase -> lasthead
+  opbuffer.splice(0, lasthead - opbase)
+  opbase = lasthead
+  lasthead = newhead
+  console.log('-> opbase', opbase, 'opbuffer', opbuffer.length, 'lasthead', lasthead)
+}, 20000)
 
 const esclients = new Set
 
@@ -169,10 +186,6 @@ app.get('/changes', (req, res, next) => {
   res.setHeader('content-type', 'text/event-stream')
   res.setHeader('cache-control', 'no-cache')
   res.setHeader('connection', 'keep-alive')
-
-  res.socket.setTimeout(0)
-  res.write('retry: 5000\n')
-  res.write('\n')
 
   // TODO: Use 'Last-Event-ID' header instead
   const fromstr = req.headers['last-event-id'] || req.query.from
@@ -187,7 +200,19 @@ app.get('/changes', (req, res, next) => {
     res.write(`data: ${JSON.stringify(arr)}\n\n`)
   }
 
-  if (from < opbase) return next(Error('requested version too old'))
+  if (from < opbase) {
+    // UGHH.. ES doesn't pass the error through. We need to tell the client to
+    // load a fresh copy of the image here, but I can't just send an error code
+    // back.
+    res.write('\n')
+    res.write('data: reload\n\n')
+    res.end()
+    return
+  }
+
+  res.socket.setTimeout(0)
+  res.write('retry: 5000\n')
+  res.write('\n')
 
   for (let i = from - opbase; i < opbuffer.length; i++) listener(i + opbase, opbuffer[i])
 
@@ -202,20 +227,31 @@ const kproducer = new kafka.Producer(kclient)
 
 const inRange = (x, min, max) => (x >= min && x < max)
 
+function doNothing() {}
+const processEdit = (x, y, c, callback = doNothing) => {
+  kproducer.send([{
+    topic: 'test',
+    // message type 0, x, y, color.
+    messages: [msgpack.encode([0, x, y, c])],
+  }], callback)
+}
+
 app.post('/edit', (req, res, next) => {
   if (req.query.x == null || req.query.y == null || req.query.c == null) return next(Error('Invalid query'))
   const x = req.query.x|0, y = req.query.y|0, c = req.query.c|0
   if (!inRange(x, 0, 1000) || !inRange(y, 0, 1000) || !inRange(c, 0, 16)) return next(Error('Invalid value'))
   
-  kproducer.send([{
-    topic: 'test',
-    // message type 0, x, y, color.
-    messages: [msgpack.encode([0, x, y, c])],
-  }], (err, data) => {
+  processEdit(x, y, c, err => {
     if (err) next(err)
     else res.end()
   })
 })
+
+/*
+setInterval(() => {
+  processEdit(randInt(10), randInt(10), randInt(16))
+}, 10)
+*/
 
 // Buffer up 1000 operations from the server.
 opbase = Math.max(version - 1000, 0)
@@ -226,7 +262,10 @@ const kconsumer = new kafka.Consumer(kclient, [{topic: 'test', offset: opbase}],
 kconsumer.on('message', msg => {
   const [type, x, y, color] = msgpack.decode(msg.value)
 
-  assert(msg.offset === opbase + opbuffer.length)
+  if (msg.offset !== opbase + opbuffer.length) {
+    console.error('ERROR DOES NOT MATCH', msg.offset, opbase, opbuffer.length, opbase + opbuffer.length)
+    return
+  }
   const msgout = [x, y, color]
   opbuffer[msg.offset - opbase] = msgout
 
@@ -246,7 +285,7 @@ kconsumer.on('message', msg => {
 
     version = msg.offset
 
-    if (version % 100 === 0) {
+    if (version % 500 === 0) {
       // Commit the updated data.
       console.log('committing version', msg.offset)
 
@@ -261,9 +300,10 @@ kconsumer.on('message', msg => {
 
 })
 
+const port = process.env.PORT || 3211
 kproducer.once('ready', () => {
-  require('http').createServer(app).listen(3211, () => {
-    console.log('listening on port 3211')
+  require('http').createServer(app).listen(port, () => {
+    console.log('listening on port', port)
   })
 })
 

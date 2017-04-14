@@ -320,6 +320,10 @@ window.onwheel = e => {
   e.preventDefault();
 }
 
+const isInScreen = (tx, ty) => (
+  tx >= 0 && tx < 1000 && ty >= 0 && ty < 1000
+)
+
 function draw() {
   if (needsDraw) return
   needsDraw = true
@@ -335,7 +339,7 @@ function draw() {
     ctx.translate(-view.scrollX, -view.scrollY)
     ctx.drawImage(imgCanvas, 0, 0)
 
-    if (mode === 'paint') {
+    if (mode === 'paint' && isInScreen(mouse.tx, mouse.ty)) {
       const c = palette[brush]
       ctx.fillStyle = `rgba(${c[0]}, ${c[1]}, ${c[2]}, 0.5)`
       ctx.fillRect(mouse.tx + 0.1, mouse.ty + 0.1, 0.8, 0.8)
@@ -363,40 +367,54 @@ const setConnected = (newStatus) => {
   }
 }
 
-fetch('/current').then(res => {
-  const version = res.headers.get('x-content-version')
+function connect(skipcache) {
+  fetch('/current', {cache: skipcache ? 'no-cache' : 'default'}).then(res => {
+    const version = res.headers.get('x-content-version')
 
-  res.blob().then(blob => {
-    const img = new Image
-    img.src = URL.createObjectURL(blob)
+    res.blob().then(blob => {
+      const img = new Image
+      img.src = URL.createObjectURL(blob)
 
-    img.onload = () => {
-      imgctx.drawImage(img, 0, 0)
-      draw()
-
-      const eventsource = new EventSource('/changes?from=' + version)
-
-      const imagedata = imgctx.createImageData(1, 1)
-      const d = imagedata.data
-
-      eventsource.onmessage = msg => {
-        const [x, y, coloridx] = JSON.parse(msg.data)
-        //console.log('set', x, y, coloridx)
-        const color = palette[coloridx]
-        d[0] = color[0]
-        d[1] = color[1]
-        d[2] = color[2]
-        d[3] = 255
-        imgctx.putImageData(imagedata, x, y)
-
+      img.onload = () => {
+        imgctx.drawImage(img, 0, 0)
         draw()
+
+        const eventsource = new EventSource('/changes?from=' + version)
+
+        const imagedata = imgctx.createImageData(1, 1)
+        const d = imagedata.data
+
+        eventsource.onmessage = msg => {
+          // I can't get out of date error messages back from the server because
+          // the browser's ES api is dumb.
+          if (msg.data === 'reload') {
+            console.log('Image out of date. Reloading.')
+            setConnected(false)
+            eventsource.close()
+            setTimeout(() => connect(true), 2000)
+            return
+          }
+          const [x, y, coloridx] = JSON.parse(msg.data)
+          //console.log('set', x, y, coloridx)
+          const color = palette[coloridx]
+          d[0] = color[0]
+          d[1] = color[1]
+          d[2] = color[2]
+          d[3] = 255
+          imgctx.putImageData(imagedata, x, y)
+
+          draw()
+        }
+
+        eventsource.onopen = e => setConnected(true)
+        eventsource.onerror = e => {
+          console.log('es error', e)
+          setConnected(false)
+        }
       }
-
-      eventsource.onopen = e => setConnected(true)
-      eventsource.onerror = e => setConnected(false)
-
-    }
+    })
   })
+}
 
-})
+connect()
 
