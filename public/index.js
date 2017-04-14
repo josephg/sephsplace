@@ -22,22 +22,21 @@ const palette = [
   [136, 136, 136], // grey
   [34, 34, 34], //black
 
-  [131, 0, 124], // dark Purple
-  [207, 109, 223], // light purple
-  [255,165,207], // pink
-  [234, 0, 9], // red
+  [255,167,209], // pink
+  [229, 0, 9], // red
+  [229, 149, 0], // orange
 
-  [233, 216, 59], // yellow
-  [233, 147, 39], // orange
-  
-  [0, 213, 220], // cyan
-  [0, 133, 195], // medium blue
-  [0, 18, 227], // dark blue
+  [160, 106, 66], // brown
 
-  [149, 224, 89], // light green
-  [0, 191, 49], // green
+  [229, 217, 0], // yellow
+  [148, 224, 68], // light green
+  [2, 190, 1], // green
+  [0, 211, 221], // cyan
 
-  [163, 105, 170], // brown
+  [0, 131, 199], // medium blue
+  [0, 0, 234], // dark blue
+  [207, 110, 228], // light purple
+  [130, 0, 128], // dark Purple
 ]
 
 

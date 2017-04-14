@@ -6,6 +6,7 @@
   "license": "MIT",
   "dependencies": {
     "express": "^4.15.2",
+    "fresh": "^0.5.0",
     "kafka-node": "^1.6.0",
     "msgpack-lite": "^0.1.26",
     "node-lmdb": "^0.4.4",

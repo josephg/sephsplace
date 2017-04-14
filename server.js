@@ -18,6 +18,7 @@ const PNG = require('pngjs').PNG
 
 const kafka = require('kafka-node')
 
+const fresh = require('fresh')
 
 const kclient = new kafka.Client()
 const express = require('express')
@@ -67,23 +68,23 @@ const palette = [
   [136, 136, 136], // grey
   [34, 34, 34], //black
 
-  [131, 0, 124], // dark Purple
-  [207, 109, 223], // light purple
-  [255,165,207], // pink
-  [234, 0, 9], // red
+  [255,167,209], // pink
+  [229, 0, 9], // red
+  [229, 149, 0], // orange
 
-  [233, 216, 59], // yellow
-  [233, 147, 39], // orange
-  
-  [0, 213, 220], // cyan
-  [0, 133, 195], // medium blue
-  [0, 18, 227], // dark blue
+  [160, 106, 66], // brown
 
-  [149, 224, 89], // light green
-  [0, 191, 49], // green
+  [229, 217, 0], // yellow
+  [148, 224, 68], // light green
+  [2, 190, 1], // green
+  [0, 211, 221], // cyan
 
-  [163, 105, 170], // brown
+  [0, 131, 199], // medium blue
+  [0, 0, 234], // dark blue
+  [207, 110, 228], // light purple
+  [130, 0, 128], // dark Purple
 ]
+
 
 /*
 const palettePacked = palette.map(arr =>
@@ -100,7 +101,8 @@ const imgBuffer = new Buffer(1000 * 1000 * 3)
     for (let x = 0; x < 1000; x++) {
       const px = y * 1000 + x
       
-      const color = palette[randInt(16)]//palette[imgData[px]]
+      //const color = palette[randInt(16)]//palette[imgData[px]]
+      const color = palette[imgData[px]]
       imgBuffer[px*3] = color[0]
       imgBuffer[px*3+1] = color[1]
       imgBuffer[px*3+2] = color[2]
@@ -119,9 +121,24 @@ const setRaw = (x, y, index) => {
 }
 
 app.get('/current', (req, res) => {
+
+  const resHeaders = {
+    // Weirdly, setting this to a lower value is sort of good because it means
+    // we won't have to keep as many clients up to date.
+    'cache-control': 'public; max-age=300'
+  }
+
+  if (fresh(req.headers, resHeaders)) {
+    //console.log('cached!')
+    res.statusCode = 304
+    return res.end()
+  }
+
   // This takes about 300ms to load.
   res.setHeader('content-type', 'image/png')
   res.setHeader('x-content-version', version)
+
+  for (const k in resHeaders) res.setHeader(k, resHeaders[k])
 
   // TODO: Find a PNG encoder which supports indexed pngs. It'll be way faster that way.
   const img = new PNG({
@@ -139,6 +156,12 @@ app.get('/current', (req, res) => {
 let opbase = 0
 const opbuffer = []
 
+setInterval(() => {
+  // Trim the op buffer down to size. The buffer only needs to store ops for
+  // the amount of cache time + expected latency time.
+
+}, 5000)
+
 const esclients = new Set
 
 app.get('/changes', (req, res, next) => {
@@ -152,13 +175,11 @@ app.get('/changes', (req, res, next) => {
   res.write('\n')
 
   // TODO: Use 'Last-Event-ID' header instead
-  console.log('SSE', req.headers)
   const fromstr = req.headers['last-event-id'] || req.query.from
 
   if (fromstr == null || isNaN(+fromstr)) return next(Error('Invalid from= parameter'))
   const from = (fromstr|0) + 1
-  console.log('from', from)
-  //console.log('changes', req.query)
+  //console.log('from', from)
 
   const listener = (v, arr) => {
     // arr should be version, x, y, color idx.
@@ -173,7 +194,6 @@ app.get('/changes', (req, res, next) => {
   esclients.add(listener)
 
   res.on('close', () => {
-    console.log('response close')
     esclients.delete(listener)
   })
 })
@@ -192,8 +212,8 @@ app.post('/edit', (req, res, next) => {
     // message type 0, x, y, color.
     messages: [msgpack.encode([0, x, y, c])],
   }], (err, data) => {
-    console.log('prod', err, data)
-    res.end()
+    if (err) next(err)
+    else res.end()
   })
 })
 
@@ -211,7 +231,7 @@ kconsumer.on('message', msg => {
   opbuffer[msg.offset - opbase] = msgout
 
   if (msg.offset > version) {
-    console.log('got message v=', msg.offset, x, y, color, msg)
+    //console.log('got message v=', msg.offset, x, y, color, msg)
 
     // Doing it in a big patch for now so its easy to test
     setRaw(x, y, color)
@@ -226,7 +246,7 @@ kconsumer.on('message', msg => {
 
     version = msg.offset
 
-    if (version % 10 === 0) {
+    if (version % 100 === 0) {
       // Commit the updated data.
       console.log('committing version', msg.offset)
 
