@@ -192,7 +192,7 @@ app.post('/edit', (req, res, next) => {
     // message type 0, x, y, color.
     messages: [msgpack.encode([0, x, y, c])],
   }], (err, data) => {
-    console.log(err, data)
+    console.log('prod', err, data)
     res.end()
   })
 })

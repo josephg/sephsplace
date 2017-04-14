@@ -8,9 +8,11 @@ const imgctx = imgCanvas.getContext('2d')
 const canvas = document.getElementsByTagName('canvas')[0]
 let ctx
 
+let isConnected = false
+
 const elems = {}
 
-;['toolbar', 'pantool', 'position'].forEach(name => elems[name] = document.getElementById(name))
+;['toolbar', 'pantool', 'position', 'connected'].forEach(name => elems[name] = document.getElementById(name))
 
 const toolbarelems = [elems.pantool]
 
@@ -261,6 +263,9 @@ canvas.onmousedown = e => {
     const {tx, ty} = mouse
     if (tx < 0 || tx >= 1000 || ty < 0 || ty >= 1000) return
 
+    // Ok, so this is going to totally mess with the 
+    
+
     fetch(`/edit?x=${tx}&y=${ty}&c=${brush}`, {method: 'POST'})
     draw()
   } else if (mode === 'pan') {
@@ -323,6 +328,17 @@ imgctx.fillStyle = 'grey'
 imgctx.fillRect(0, 0, 1000, 1000)
 draw()
 
+const setConnected = (newStatus) => {
+  isConnected = newStatus
+
+  if (isConnected) {
+    elems.connected.className = 'yes'
+    elems.connected.textContent = 'OK'
+  } else {
+    elems.connected.className = 'no'
+    elems.connected.textContent = 'NOT CONNECTED'
+  }
+}
 
 fetch('/current').then(res => {
   const version = res.headers.get('x-content-version')
@@ -352,10 +368,12 @@ fetch('/current').then(res => {
 
         draw()
       }
+
+      eventsource.onopen = e => setConnected(true)
+      eventsource.onerror = e => setConnected(false)
+
     }
   })
 
 })
-
-
 
