@@ -230,7 +230,7 @@ const inRange = (x, min, max) => (x >= min && x < max)
 function doNothing() {}
 const processEdit = (x, y, c, callback = doNothing) => {
   kproducer.send([{
-    topic: 'test',
+    topic: 'sephsplace',
     // message type 0, x, y, color.
     messages: [msgpack.encode([0, x, y, c])],
   }], callback)
@@ -255,7 +255,7 @@ setInterval(() => {
 
 // Buffer up 1000 operations from the server.
 opbase = Math.max(version - 1000, 0)
-const kconsumer = new kafka.Consumer(kclient, [{topic: 'test', offset: opbase}], {
+const kconsumer = new kafka.Consumer(kclient, [{topic: 'sephsplace', offset: opbase}], {
   encoding: 'buffer',
   fromOffset: true,
 })
@@ -302,8 +302,15 @@ kconsumer.on('message', msg => {
 
 const port = process.env.PORT || 3211
 kproducer.once('ready', () => {
-  require('http').createServer(app).listen(port, () => {
-    console.log('listening on port', port)
+  kproducer.createTopics(['sephsplace'], false, (err) => {
+    if (err) {
+      console.error('Could not create topic')
+      throw err
+    }
+
+    require('http').createServer(app).listen(port, () => {
+      console.log('listening on port', port)
+    })
   })
 })
 
