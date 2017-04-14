@@ -1,0 +1,14 @@
+{
+  "name": "sephplace",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": {},
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.15.2",
+    "kafka-node": "^1.6.0",
+    "msgpack-lite": "^0.1.26",
+    "node-lmdb": "^0.4.4",
+    "pngjs": "^3.0.1"
+  }
+}
