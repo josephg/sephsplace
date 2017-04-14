@@ -23,7 +23,7 @@ const fresh = require('fresh')
 const kclient = new kafka.Client()
 const express = require('express')
 const app = express()
-app.use(express.static(__dirname + '/public'))
+app.use('/sp', express.static(__dirname + '/public'))
 
 // This is important so we can hot-resume when the server starts without
 // needing to read the entire kafka log. A file would almost be good enough,
@@ -120,7 +120,9 @@ const setRaw = (x, y, index) => {
   imgBuffer[px*3+2] = color[2]
 }
 
-app.get('/current', (req, res) => {
+app.get('/', (req, res) => res.redirect('/sp/'))
+
+app.get('/sp/current', (req, res) => {
 
   const resHeaders = {
     // Weirdly, setting this to a lower value is sort of good because it means
@@ -181,7 +183,7 @@ setInterval(() => {
 
 const esclients = new Set
 
-app.get('/changes', (req, res, next) => {
+app.get('/sp/changes', (req, res, next) => {
   // TODO: Add a local buffer and serve recent operations out of that.
   res.setHeader('content-type', 'text/event-stream')
   res.setHeader('cache-control', 'no-cache')
@@ -236,7 +238,7 @@ const processEdit = (x, y, c, callback = doNothing) => {
   }], callback)
 }
 
-app.post('/edit', (req, res, next) => {
+app.post('/sp/edit', (req, res, next) => {
   if (req.query.x == null || req.query.y == null || req.query.c == null) return next(Error('Invalid query'))
   const x = req.query.x|0, y = req.query.y|0, c = req.query.c|0
   if (!inRange(x, 0, 1000) || !inRange(y, 0, 1000) || !inRange(c, 0, 16)) return next(Error('Invalid value'))

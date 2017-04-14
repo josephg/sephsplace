@@ -224,10 +224,10 @@ elems.pantool.onclick = () => {
 
 
 let needsDraw = false
-const view = new View(0, 0)
+const view = new View(0, 0, {initialX: -10, initialY: -10, initialZoom: 10})
 view.resizeTo(window.innerWidth, window.innerHeight)
 // Zoom out to the whole image at first.
-view.fit(1000, 1000, 0, 0)
+//view.fit(1000, 1000, 0, 0)
 
 window.onresize = () => view.resizeTo(window.innerWidth, window.innerHeight)
 
@@ -279,7 +279,7 @@ canvas.onmousedown = e => {
     }
 
     // Put this in a timeout to test the speculative drawing.
-    fetch(`/edit?x=${tx}&y=${ty}&c=${brush}`, {method: 'POST'})
+    fetch(`edit?x=${tx}&y=${ty}&c=${brush}`, {method: 'POST'})
     // TODO: If the fetch errors, undo the speculative edit display
 
     draw()
@@ -368,7 +368,7 @@ const setConnected = (newStatus) => {
 }
 
 function connect(skipcache) {
-  fetch('/current', {cache: skipcache ? 'no-cache' : 'default'}).then(res => {
+  fetch('current', {cache: skipcache ? 'no-cache' : 'default'}).then(res => {
     const version = res.headers.get('x-content-version')
 
     res.blob().then(blob => {
@@ -379,7 +379,7 @@ function connect(skipcache) {
         imgctx.drawImage(img, 0, 0)
         draw()
 
-        const eventsource = new EventSource('/changes?from=' + version)
+        const eventsource = new EventSource('changes?from=' + version)
 
         const imagedata = imgctx.createImageData(1, 1)
         const d = imagedata.data
