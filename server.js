@@ -35,6 +35,8 @@ dbenv.open({ path: 'snapshot', mapSize: 10*1024*1024 })
 const snapshotdb = dbenv.openDbi({create: true})
 
 
+const randInt = max => (Math.random() * max) | 0
+
 const loadSnapshot = () => {
   // Read a snapshot from the database if we can.
   const txn = dbenv.beginTxn({readOnly: true})
@@ -98,7 +100,7 @@ const imgBuffer = new Buffer(1000 * 1000 * 3)
     for (let x = 0; x < 1000; x++) {
       const px = y * 1000 + x
       
-      const color = palette[imgData[px]]
+      const color = palette[randInt(16)]//palette[imgData[px]]
       imgBuffer[px*3] = color[0]
       imgBuffer[px*3+1] = color[1]
       imgBuffer[px*3+2] = color[2]
@@ -115,8 +117,6 @@ const setRaw = (x, y, index) => {
   imgBuffer[px*3+1] = color[1]
   imgBuffer[px*3+2] = color[2]
 }
-
-const randInt = max => (Math.random() * max) | 0
 
 app.get('/current', (req, res) => {
   // This takes about 300ms to load.
@@ -147,6 +147,7 @@ app.get('/changes', (req, res, next) => {
   res.setHeader('cache-control', 'no-cache')
   res.setHeader('connection', 'keep-alive')
 
+  res.socket.setTimeout(0)
   res.write('retry: 5000\n')
   res.write('\n')
 
@@ -178,11 +179,18 @@ app.get('/changes', (req, res, next) => {
 })
 
 const kproducer = new kafka.Producer(kclient)
-app.post('/edit', (req, res) => {
+
+const inRange = (x, min, max) => (x >= min && x < max)
+
+app.post('/edit', (req, res, next) => {
+  if (req.query.x == null || req.query.y == null || req.query.c == null) return next(Error('Invalid query'))
+  const x = req.query.x|0, y = req.query.y|0, c = req.query.c|0
+  if (!inRange(x, 0, 1000) || !inRange(y, 0, 1000) || !inRange(c, 0, 16)) return next(Error('Invalid value'))
+  
   kproducer.send([{
     topic: 'test',
     // message type 0, x, y, color.
-    messages: [msgpack.encode([0, 0, 0, randInt(16)])],
+    messages: [msgpack.encode([0, x, y, c])],
   }], (err, data) => {
     console.log(err, data)
     res.end()
@@ -206,11 +214,13 @@ kconsumer.on('message', msg => {
     console.log('got message v=', msg.offset, x, y, color, msg)
 
     // Doing it in a big patch for now so its easy to test
+    setRaw(x, y, color)
+    /*
     for (let x = 0; x < 100; x++) {
       for (let y = 0; y < 100; y++) {
         setRaw(x, y, color)
       }
-    }
+    }*/
 
     assert(msg.offset === version + 1)
 
