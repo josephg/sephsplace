@@ -262,24 +262,31 @@ canvas.onmousedown = e => {
     const {tx, ty} = mouse
     if (tx < 0 || tx >= 1000 || ty < 0 || ty >= 1000) return
 
-    // Ok, so this is a pretty crappy speculative editing implementation. A
-    // 'better' way to do it would be to have an overlay or something. But
-    // because when we see our op we'll overwrite the current cell, this should
-    // work ok.
-    if (isConnected) {
-      const imagedata = imgctx.createImageData(1, 1)
-      const d = imagedata.data
+    const oldColor = imgctx.getImageData(tx, ty, 1, 1).data
+    const imagedata = imgctx.createImageData(1, 1)
+    const d = imagedata.data
 
-      const color = palette[brush]
-      d[0] = color[0]
-      d[1] = color[1]
-      d[2] = color[2]
-      d[3] = 150 // not with full opacity.
-      imgctx.putImageData(imagedata, tx, ty)
-    }
+    const color = palette[brush]
+    d[0] = color[0]
+    d[1] = color[1]
+    d[2] = color[2]
+    d[3] = 150 // not with full opacity.
+    imgctx.putImageData(imagedata, tx, ty)
 
     // Put this in a timeout to test the speculative drawing.
-    fetch(`edit?x=${tx}&y=${ty}&c=${brush}`, {method: 'POST'})
+    fetch(`edit?x=${tx}&y=${ty}&c=${brush}`, {method: 'POST'}).then(res => {
+      // This isn't perfect - it has a race condition if someone else edits the
+      // pixel while we're waiting for our edit to go through. But it'll do for
+      // now.
+      if (res.status !== 200) {
+        d[0] = oldColor[0]
+        d[1] = oldColor[1]
+        d[2] = oldColor[2]
+        d[3] = 255 // not with full opacity.
+
+        imgctx.putImageData(imagedata, tx, ty)
+      }
+    })
     // TODO: If the fetch errors, undo the speculative edit display
 
     draw()
@@ -310,7 +317,6 @@ canvas.onmouseup = e => {
 window.onkeydown = e => {
   //console.log(e.keyCode)
   if (e.keyCode === 32 && mode === 'paint') setMode('pan') // space
-
 }
 
 window.onkeyup = e => {

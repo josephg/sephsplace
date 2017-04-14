@@ -238,10 +238,31 @@ const processEdit = (x, y, c, callback = doNothing) => {
   }], callback)
 }
 
+const editsByAddress = new Map
+const getDef = (map, key, deffn) => {
+  let val = map.get(key)
+  if (val == null) {
+    val = deffn()
+    map.set(key, val)
+  }
+  return val
+}
+
+setInterval(() => {
+  editsByAddress.clear()
+}, 10000)
+
 app.post('/sp/edit', (req, res, next) => {
   if (req.query.x == null || req.query.y == null || req.query.c == null) return next(Error('Invalid query'))
   const x = req.query.x|0, y = req.query.y|0, c = req.query.c|0
   if (!inRange(x, 0, 1000) || !inRange(y, 0, 1000) || !inRange(c, 0, 16)) return next(Error('Invalid value'))
+
+  // Simple rate limiting. Only allow 10 edits per 10 second window.
+  const address = req.headers['x-forwarded-for'] || req.connection.remoteAddress
+  const edits = getDef(editsByAddress, address, () => 0)
+  // Rate limited. haha.
+  if (edits > 10) return res.sendStatus(403)
+  editsByAddress.set(address, edits + 1)
   
   processEdit(x, y, c, err => {
     if (err) next(err)
