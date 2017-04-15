@@ -20,7 +20,7 @@ const fresh = require('fresh')
 const url = require('url')
 const WSS = require('ws').Server;
 const express = require('express')
-
+const fs = require('fs')
 
 const kclient = new kafka.Client()
 const app = express()
@@ -34,7 +34,6 @@ app.use('/sp', express.static(__dirname + '/public'))
 // but we need to atomically write to it. So, this is easier.
 const dbenv = new lmdb.Env()
 
-const fs = require('fs')
 if (!fs.existsSync('snapshot')) fs.mkdirSync('snapshot')
 dbenv.open({ path: 'snapshot', mapSize: 100*1024*1024 })
 const snapshotdb = dbenv.openDbi({create: true})
@@ -346,6 +345,21 @@ const processEdit = (() => {
 })()
 
 
+const banlist = new Set
+
+try {
+  const entries = JSON.parse(fs.readFileSync('banlist.json', 'utf-8'))
+  entries.forEach(e => banlist.add(e))
+} catch (e) { console.log('could not load banlist', e) }
+
+const ban = (address) => {
+  if (!banlist.has(address)) {
+    console.log('banning', address)
+    banlist.add(address)
+    fs.writeFileSync('banlist.json', JSON.stringify(Array.from(banlist)))
+  }
+}
+
 const byUserAgent = new Map
 const editsByAddress = new Map
 const getDef = (map, key, deffn) => {
@@ -358,9 +372,9 @@ const getDef = (map, key, deffn) => {
 }
 
 setInterval(() => {
-  console.log(editsByAddress)
+  //console.log(editsByAddress)
   editsByAddress.clear()
-  console.log(byUserAgent)
+  //console.log(byUserAgent)
   byUserAgent.clear()
 }, 10000)
 
@@ -370,13 +384,17 @@ app.post('/sp/edit', (req, res, next) => {
   if (!inRange(x, 0, 1000) || !inRange(y, 0, 1000) || !inRange(c, 0, 16)) return next(Error('Invalid value'))
 
   // Simple rate limiting. Only allow 10 edits per 10 second window.
+  const ua = req.headers['user-agent']
   const address = req.headers['x-forwarded-for'] || req.connection.remoteAddress
+
+  if (ua === 'python-requests/2.10.0') ban(address)
+  if (banlist.has(address)) return res.end()
+
   const edits = getDef(editsByAddress, address, () => 0)
   // Rate limited. haha.
   if (edits > 10) return res.sendStatus(403)
   editsByAddress.set(address, edits + 1)
 
-  const ua = req.headers['user-agent']
   const m = getDef(byUserAgent, ua, () => new Set()).add(address)
   
   processEdit(x, y, c, err => {
