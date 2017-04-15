@@ -372,9 +372,9 @@ const getDef = (map, key, deffn) => {
 }
 
 setInterval(() => {
-  //console.log(editsByAddress)
+  console.log(editsByAddress)
   editsByAddress.clear()
-  //console.log(byUserAgent)
+  console.log(byUserAgent)
   byUserAgent.clear()
 }, 10000)
 
