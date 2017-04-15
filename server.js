@@ -417,9 +417,9 @@ const broadcastPack = (() => {
 
 setInterval(() => {
   stats.numClients = wss.clients.size
-  console.log('stats', stats)
+  console.log((new Date()).toISOString(), 'stats', stats)
   for (const k in stats) stats[k] = 0
-}, 1000)
+}, 10000)
 
 
 // Buffer up 1000 operations from the server.
