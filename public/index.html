@@ -23,15 +23,20 @@ canvas {
   top: 30px;
 }
 
-#toolbar > div {
+#toolbar>div, #zoom>div {
   display: block;
   width: 50px;
   height: 50px;
   background: #333;
   margin-bottom: 4px;
-  border-radius: 8px 12px;
+}
+#toolbar>div {
   background: #fff;
+  border-radius: 8px 12px;
   border: 3px solid rgba(0,0,0,0.2)
+}
+#zoom>div {
+  background: transparent;
 }
 
 #toolbar > div.enabled {
@@ -42,7 +47,13 @@ canvas {
   margin-bottom: 4px;
 }
 
-#pantool > img { width: 100%; height: 100% }
+#pantool>img,#zoomin>img,#zoomout>img { width: 100%; height: 100% }
+
+#zoom {
+  position: fixed;
+  top: 30px;
+  right: 30px;
+}
 
 #position {
   position: fixed;
@@ -80,6 +91,11 @@ canvas {
 
 <div id='toolbar'>
   <div id='pantool'><img src='DPAD_all.png'></div>
+</div>
+
+<div id='zoom'>
+  <div id='zoomin'><img src='zoomIn.png'></div>
+  <div id='zoomout'><img src='zoomOut.png'></div>
 </div>
 
 <div id='position'>(0, 0)</div>

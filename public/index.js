@@ -12,9 +12,12 @@ let isConnected = false
 
 const elems = {}
 
-;['toolbar', 'pantool', 'position', 'connected'].forEach(name => elems[name] = document.getElementById(name))
+;['toolbar', 'pantool', 'position', 'connected', 'zoomin', 'zoomout'].forEach(name => elems[name] = document.getElementById(name))
 
 const toolbarelems = [elems.pantool]
+
+// zoomin, zoomout, ..?
+const motion = new Set
 
 const palette = [
   [255, 255, 255], // white
@@ -222,6 +225,16 @@ elems.pantool.onclick = () => {
   }
 }
 
+['zoomin', 'zoomout'].forEach(b => {
+  const elem = elems[b]
+  elem.onmousedown = e => {
+    motion.add(b)
+    draw()
+  }
+  elem.onmouseup = elem.onmouseleave = e => {
+    motion.delete(b)
+  }
+})
 
 let needsDraw = false
 const view = new View(0, 0, {initialX: -10, initialY: -10, initialZoom: 10})
@@ -347,6 +360,16 @@ function draw() {
   if (needsDraw) return
   needsDraw = true
   requestAnimationFrame(() => {
+    needsDraw = false
+
+    if (motion.has('zoomin')) {
+      view.zoomBy(0.2, {x:view.width/2, y:view.height/2})
+      draw()
+    } else if (motion.has('zoomout')) {
+      view.zoomBy(-0.2, {x:view.width/2, y:view.height/2})
+      draw()
+    }
+
     ctx.fillStyle = '#eee'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
@@ -366,7 +389,6 @@ function draw() {
     ctx.restore()
     //ctx.drawImage(imgCanvas, 0, 0, 10000, 10000)
   
-    needsDraw = false
   })
 }
 
