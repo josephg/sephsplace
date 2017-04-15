@@ -6,6 +6,7 @@
 // - Fetch image API - this will only be hit by nginx. It returns the current place image and its version
 // - Event stream API - This is a server-sent event stream which will just forward events from kafka.
 
+process.title = 'sephplace'
 
 // lmdb will be used to store the local image cache.
 const lmdb = require('node-lmdb')
@@ -251,8 +252,11 @@ wss.on('connection', client => {
     console.error('WS Error', message)
   }
 
-  if (fromstr == null || isNaN(+fromstr)) return err('Invalid from= parameter')
-  const from = (fromstr|0) + 1
+  // from of 'latest' will bypass from checking and bypass the catchup. This is
+  // used for load testing.
+ 
+  if (fromstr == null || (fromstr !== 'latest' && isNaN(+fromstr))) return err('Invalid from= parameter')
+  const from = fromstr === 'latest' ? (opbase + opbuffer.length) : ((fromstr|0) + 1)
 
   if (from < opbase) {
     client.send('reload')
@@ -265,6 +269,7 @@ wss.on('connection', client => {
 
   client.on('message', msg => {
     // TODO: Allow edits here via WS instead of HTTP.
+    console.log('got message', msg.length)
   })
 })
 
@@ -383,6 +388,8 @@ setInterval(() => {
 }, 10)
 */
 
+const stats = {sentPackets:0, sentBytes:0}
+
 const broadcastPack = (() => {
   let version = -1
   const buffer = new Buffer(1000 * 100 * 3) // Way bigger than we need.
@@ -396,12 +403,23 @@ const broadcastPack = (() => {
     buffer.writeUInt32LE(version, 0)
 
     const slice = buffer.slice(0, pos)
-    for (const c of wss.clients) // OPEN
-      if (c.readyState === 1) c.send(slice)
+    // OPEN
+    for (const c of wss.clients) if (c.readyState === 1) {
+      stats.sentPackets++
+      stats.sentBytes += slice.length
+
+      c.send(slice)
+    }
 
     pos = 4
   })
 })()
+
+setInterval(() => {
+  stats.numClients = wss.clients.size
+  console.log('stats', stats)
+  for (const k in stats) stats[k] = 0
+}, 1000)
 
 
 // Buffer up 1000 operations from the server.

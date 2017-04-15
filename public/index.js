@@ -434,34 +434,6 @@ function rawSet(x, y, c, alpha = 255) {
   draw()
 }
 
-function connectES(version) {
-  const eventsource = new EventSource('changes?from=' + version)
-
-  eventsource.onmessage = msg => {
-    // I can't get out of date error messages back from the server because
-    // the browser's ES api is dumb.
-    if (msg.data === 'reload') {
-      console.log('Image out of date. Reloading.')
-      setConnected(false)
-      eventsource.close()
-      setTimeout(() => connect(true), 2000)
-      return
-    } else if (msg.data === 'refresh') {
-      location.reload()
-      return
-    }
-    const [x, y, coloridx] = JSON.parse(msg.data)
-    //console.log('set', x, y, coloridx)
-    rawSet(x, y, coloridx)
-  }
-
-  eventsource.onopen = e => setConnected(true)
-  eventsource.onerror = e => {
-    console.log('es error', e)
-    setConnected(false)
-  }
-}
-
 const decodeEdit = (buffer, offset) => { // returns x, y, color.
   const xx = buffer[offset]
   const yx = buffer[offset + 1]
@@ -476,7 +448,7 @@ const decodeEdit = (buffer, offset) => { // returns x, y, color.
 
 function connectWS(version) {
   const origin = 'ws' + location.origin.slice(4)
-  const ws = new WebSocket(`${origin}/changes?from=${version}`)
+  const ws = new WebSocket(`${origin}/sp/ws?from=${version}`)
   ws.binaryType = 'arraybuffer'
 
   ws.onopen = () => {
@@ -491,11 +463,14 @@ function connectWS(version) {
         setConnected(false)
         ws.close()
         setTimeout(() => connect(true), 2000)
+      } else if (msg.data === 'refresh') {
+        location.reload()
       } else console.log(msg.data)
     } else {
       // Ok, its an ArrayBuffer. Process all data.
       const vb = new Uint32Array(msg.data.slice(0, 4))
       version = vb[0]
+      window._version = version
 
       const ab = new Uint8Array(msg.data)
       for (let i = 4; i < ab.length; i+=3) {
@@ -503,8 +478,6 @@ function connectWS(version) {
         //console.log('decode', ab[i], ab[i+1], ab[i+2], x, y, c)
         rawSet(x, y, c)
       }
-
-      version++
     }
   }
 
@@ -525,6 +498,7 @@ function connectWS(version) {
 function connect(skipcache) {
   fetch('current', {cache: skipcache ? 'no-cache' : 'default'}).then(res => {
     const version = res.headers.get('x-content-version')
+    window._version = version
 
     res.blob().then(blob => {
       const img = new Image
@@ -534,7 +508,6 @@ function connect(skipcache) {
         imgctx.drawImage(img, 0, 0)
         draw()
 
-        //connectES(version)
         connectWS(version)
       }
     })
