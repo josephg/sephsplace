@@ -121,6 +121,7 @@ class View {
   }
 
   scrollBy(dx, dy) {
+    if (isNaN(dx)) throw Error('dx NaN')
     this.scrollX += dx / this.size
     this.scrollY += dy / this.size
 
@@ -311,6 +312,7 @@ canvas.onmousedown = e => {
   e.preventDefault();
 }
 
+
 canvas.onmousemove = e => {
   if (updateMousePos(e)) {
 
@@ -319,7 +321,9 @@ canvas.onmousemove = e => {
     if (mode === 'paint') draw() // So we can draw the edit hover.
   }
 
-  if (e.which && mode === 'pan') {
+  // e.buttons is undefined in safari. e.which is always 1 in firefox. :(
+  const b = e.buttons == null ? e.which : e.buttons
+  if (b === 1 && mouse.dx && mode === 'pan') {
     view.scrollBy(-mouse.dx, -mouse.dy)
     draw()
   }
