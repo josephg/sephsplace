@@ -497,7 +497,8 @@ kconsumer.on('message', _msg => {
   }
 })
 
-const port = process.env.PORT || 3211
+const pmid = process.env.pm_id
+const port = process.env.PORT || (3211 + (pmid ? (pmid|0) : 0))
 kproducer.once('ready', () => {
   kproducer.createTopics(['sephsplace'], false, (err) => {
     if (err) {
