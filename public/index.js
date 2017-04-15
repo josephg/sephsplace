@@ -422,6 +422,106 @@ const setConnected = (newStatus) => {
   }
 }
 
+const imagedata = imgctx.createImageData(1, 1)
+const _d = imagedata.data
+function rawSet(x, y, c, alpha = 255) {
+  const color = palette[c]
+  _d[0] = color[0]
+  _d[1] = color[1]
+  _d[2] = color[2]
+  _d[3] = alpha
+  imgctx.putImageData(imagedata, x, y)
+  draw()
+}
+
+function connectES(version) {
+  const eventsource = new EventSource('changes?from=' + version)
+
+  eventsource.onmessage = msg => {
+    // I can't get out of date error messages back from the server because
+    // the browser's ES api is dumb.
+    if (msg.data === 'reload') {
+      console.log('Image out of date. Reloading.')
+      setConnected(false)
+      eventsource.close()
+      setTimeout(() => connect(true), 2000)
+      return
+    } else if (msg.data === 'refresh') {
+      location.reload()
+      return
+    }
+    const [x, y, coloridx] = JSON.parse(msg.data)
+    //console.log('set', x, y, coloridx)
+    rawSet(x, y, coloridx)
+  }
+
+  eventsource.onopen = e => setConnected(true)
+  eventsource.onerror = e => {
+    console.log('es error', e)
+    setConnected(false)
+  }
+}
+
+const decodeEdit = (buffer, offset) => { // returns x, y, color.
+  const xx = buffer[offset]
+  const yx = buffer[offset + 1]
+  const cy = buffer[offset + 2]
+
+  const x = xx | ((yx & 0x3) << 8)
+  const y = (yx >>> 2) | ((cy & 0xf) << 6)
+  const c = cy >> 4
+
+  return [x, y, c]
+}
+
+function connectWS(version) {
+  const origin = 'ws' + location.origin.slice(4)
+  const ws = new WebSocket(`${origin}/changes?from=${version}`)
+  ws.binaryType = 'arraybuffer'
+
+  ws.onopen = () => {
+    console.log('connection open')
+    setConnected(true)
+  }
+
+  ws.onmessage = (msg) => {
+    //console.log('got message', msg.data, msg)
+    if (typeof msg.data === 'string') {
+      if (msg.data === 'reload') {
+        setConnected(false)
+        ws.close()
+        setTimeout(() => connect(true), 2000)
+      } else console.log(msg.data)
+    } else {
+      // Ok, its an ArrayBuffer. Process all data.
+      const vb = new Uint32Array(msg.data.slice(0, 4))
+      version = vb[0]
+
+      const ab = new Uint8Array(msg.data)
+      for (let i = 4; i < ab.length; i+=3) {
+        const [x, y, c] = decodeEdit(ab, i)
+        //console.log('decode', ab[i], ab[i+1], ab[i+2], x, y, c)
+        rawSet(x, y, c)
+      }
+
+      version++
+    }
+  }
+
+  ws.onclose = () => {
+    setConnected(false)
+    setTimeout(() => connectWS(version), 3000)
+  }
+
+  ws.onerror = err => {
+    setConnected(false)
+    console.error('ws error', err)
+
+    // And close and reconnect.
+  }
+}
+
+
 function connect(skipcache) {
   fetch('current', {cache: skipcache ? 'no-cache' : 'default'}).then(res => {
     const version = res.headers.get('x-content-version')
@@ -434,41 +534,8 @@ function connect(skipcache) {
         imgctx.drawImage(img, 0, 0)
         draw()
 
-        const eventsource = new EventSource('changes?from=' + version)
-
-        const imagedata = imgctx.createImageData(1, 1)
-        const d = imagedata.data
-
-        eventsource.onmessage = msg => {
-          // I can't get out of date error messages back from the server because
-          // the browser's ES api is dumb.
-          if (msg.data === 'reload') {
-            console.log('Image out of date. Reloading.')
-            setConnected(false)
-            eventsource.close()
-            setTimeout(() => connect(true), 2000)
-            return
-          } else if (msg.data === 'refresh') {
-            location.reload()
-            return
-          }
-          const [x, y, coloridx] = JSON.parse(msg.data)
-          //console.log('set', x, y, coloridx)
-          const color = palette[coloridx]
-          d[0] = color[0]
-          d[1] = color[1]
-          d[2] = color[2]
-          d[3] = 255
-          imgctx.putImageData(imagedata, x, y)
-
-          draw()
-        }
-
-        eventsource.onopen = e => setConnected(true)
-        eventsource.onerror = e => {
-          console.log('es error', e)
-          setConnected(false)
-        }
+        //connectES(version)
+        connectWS(version)
       }
     })
   })
