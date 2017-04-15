@@ -399,6 +399,11 @@ function draw() {
     ctx.translate(-view.scrollX, -view.scrollY)
     ctx.drawImage(imgCanvas, 0, 0)
 
+    ctx.font = '15px monospace'
+    ctx.fillStyle = '#333'
+    ;['Rules:', 'No swasticas', "Buy me dinner before you show me your junk"]
+    .forEach((str, i) => { ctx.fillText(str, 0, 1000 + (i+1) * 15) })
+
     if (mode === 'paint' && isInScreen(mouse.tx, mouse.ty)) {
       const c = palette[brush]
       ctx.fillStyle = `rgba(${c[0]}, ${c[1]}, ${c[2]}, 0.5)`
