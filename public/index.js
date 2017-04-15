@@ -352,6 +352,20 @@ window.onwheel = e => {
   e.preventDefault();
 }
 
+let lastScale = 1
+window.addEventListener('gesturestart', e => {
+  e.preventDefault()
+  lastScale = 1
+}, true)
+window.addEventListener('gesturechange', e => {
+  view.zoomBy(view.size * (e.scale / lastScale - 1), mouse)
+  lastScale = e.scale
+  e.preventDefault()
+}, true)
+window.addEventListener('gesturechange', e => {
+  e.preventDefault()
+}, true)
+
 const isInScreen = (tx, ty) => (
   tx >= 0 && tx < 1000 && ty >= 0 && ty < 1000
 )
