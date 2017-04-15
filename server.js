@@ -372,9 +372,9 @@ const getDef = (map, key, deffn) => {
 }
 
 setInterval(() => {
-  console.log(editsByAddress)
+  //console.log(editsByAddress)
   editsByAddress.clear()
-  console.log(byUserAgent)
+  console.log(byUserAgent) // for ban detection
   byUserAgent.clear()
 }, 10000)
 
@@ -413,7 +413,7 @@ setInterval(() => {
 }, 10)
 */
 
-const stats = {sentPackets:0, sentBytes:0}
+const stats = {sentPackets:0, sentBytes:0, editMessages:0, edits:0}
 
 const broadcastPack = (() => {
   let version = -1
@@ -442,7 +442,7 @@ const broadcastPack = (() => {
 
 setInterval(() => {
   stats.numClients = wss.clients.size
-  console.log((new Date()).toISOString(), 'stats', stats)
+  console.log((new Date()).toISOString(), 'stats', JSON.stringify(stats))
   for (const k in stats) stats[k] = 0
 }, 10000)
 
@@ -454,6 +454,8 @@ const kconsumer = new kafka.Consumer(kclient, [{topic: 'sephsplace', offset: opb
   fromOffset: true,
 })
 kconsumer.on('message', _msg => {
+  stats.editMessages++
+
   const offset = _msg.offset
   if (offset !== opbase + opbuffer.length) {
     console.error('ERROR DOES NOT MATCH', offset, opbase, opbuffer.length, opbase + opbuffer.length)
@@ -472,6 +474,8 @@ kconsumer.on('message', _msg => {
       //console.log('got normal message', x, y, color)
 
       if (offset > version) {
+        stats.edits++
+
         setRaw(x, y, color)
 
         const b = new Buffer(3)
@@ -490,6 +494,7 @@ kconsumer.on('message', _msg => {
       //console.log('got pack', buf.length / 3)
 
       for (let off = 0; off < buf.length; off += 3) {
+        stats.edits++
         const [x,y,c] = decodeEdit(buf, off)
         setRaw(x, y, c)
       }
