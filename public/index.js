@@ -263,33 +263,35 @@ canvas.onmousedown = e => {
     if (tx < 0 || tx >= 1000 || ty < 0 || ty >= 1000) return
 
     const oldColor = imgctx.getImageData(tx, ty, 1, 1).data
-    const imagedata = imgctx.createImageData(1, 1)
-    const d = imagedata.data
-
     const color = palette[brush]
-    d[0] = color[0]
-    d[1] = color[1]
-    d[2] = color[2]
-    d[3] = 150 // not with full opacity.
-    imgctx.putImageData(imagedata, tx, ty)
 
-    // Put this in a timeout to test the speculative drawing.
-    fetch(`edit?x=${tx}&y=${ty}&c=${brush}`, {method: 'POST'}).then(res => {
-      // This isn't perfect - it has a race condition if someone else edits the
-      // pixel while we're waiting for our edit to go through. But it'll do for
-      // now.
-      if (res.status !== 200) {
-        d[0] = oldColor[0]
-        d[1] = oldColor[1]
-        d[2] = oldColor[2]
-        d[3] = 255 // not with full opacity.
+    if (oldColor[0] !== color[0] || oldColor[1] !== color[1] || oldColor[2] !== color[2]) {
+      const imagedata = imgctx.createImageData(1, 1)
+      const d = imagedata.data
 
-        imgctx.putImageData(imagedata, tx, ty)
-      }
-    })
-    // TODO: If the fetch errors, undo the speculative edit display
+      d[0] = color[0]
+      d[1] = color[1]
+      d[2] = color[2]
+      d[3] = 150 // not with full opacity.
+      imgctx.putImageData(imagedata, tx, ty)
 
-    draw()
+      // Put this in a timeout to test the speculative drawing.
+      fetch(`edit?x=${tx}&y=${ty}&c=${brush}`, {method: 'POST'}).then(res => {
+        // This isn't perfect - it has a race condition if someone else edits the
+        // pixel while we're waiting for our edit to go through. But it'll do for
+        // now.
+        if (res.status !== 200) {
+          d[0] = oldColor[0]
+          d[1] = oldColor[1]
+          d[2] = oldColor[2]
+          d[3] = 255 // not with full opacity.
+
+          imgctx.putImageData(imagedata, tx, ty)
+        }
+      })
+
+      draw()
+    }
   } else if (mode === 'pan') {
     canvas.style.cursor = '-webkit-grabbing'
   }

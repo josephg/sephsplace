@@ -32,7 +32,7 @@ const dbenv = new lmdb.Env()
 
 const fs = require('fs')
 if (!fs.existsSync('snapshot')) fs.mkdirSync('snapshot')
-dbenv.open({ path: 'snapshot', mapSize: 10*1024*1024 })
+dbenv.open({ path: 'snapshot', mapSize: 100*1024*1024 })
 const snapshotdb = dbenv.openDbi({create: true})
 
 
@@ -310,7 +310,7 @@ kconsumer.on('message', msg => {
 
     if (version % 500 === 0) {
       // Commit the updated data.
-      console.log('committing version', msg.offset)
+      console.log((new Date()).toISOString(), 'committing version', msg.offset)
 
       const txn = dbenv.beginTxn()
       txn.putBinary(snapshotdb, 'current', imgData)
