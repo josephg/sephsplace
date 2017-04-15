@@ -448,6 +448,9 @@ function connect(skipcache) {
             eventsource.close()
             setTimeout(() => connect(true), 2000)
             return
+          } else if (msg.data === 'refresh') {
+            location.reload()
+            return
           }
           const [x, y, coloridx] = JSON.parse(msg.data)
           //console.log('set', x, y, coloridx)
