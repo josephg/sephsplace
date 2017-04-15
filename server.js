@@ -346,6 +346,7 @@ const processEdit = (() => {
 })()
 
 
+const byUserAgent = new Map
 const editsByAddress = new Map
 const getDef = (map, key, deffn) => {
   let val = map.get(key)
@@ -357,7 +358,10 @@ const getDef = (map, key, deffn) => {
 }
 
 setInterval(() => {
+  console.log(editsByAddress)
   editsByAddress.clear()
+  console.log(byUserAgent)
+  byUserAgent.clear()
 }, 10000)
 
 app.post('/sp/edit', (req, res, next) => {
@@ -371,6 +375,9 @@ app.post('/sp/edit', (req, res, next) => {
   // Rate limited. haha.
   if (edits > 10) return res.sendStatus(403)
   editsByAddress.set(address, edits + 1)
+
+  const ua = req.headers['user-agent']
+  const m = getDef(byUserAgent, ua, () => new Set()).add(address)
   
   processEdit(x, y, c, err => {
     if (err) next(err)
