@@ -374,7 +374,7 @@ const getDef = (map, key, deffn) => {
 setInterval(() => {
   //console.log(editsByAddress)
   editsByAddress.clear()
-  console.log(byUserAgent) // for ban detection
+  //console.log(byUserAgent) // for ban detection
   byUserAgent.clear()
 }, 10000)
 
