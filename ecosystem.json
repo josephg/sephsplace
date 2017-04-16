@@ -25,7 +25,7 @@
       ref  : "origin/master",
       repo : "https://github.com/josephg/sephsplace.git",
       path : "/home/josephg/deploy/sephsplace",
-      "post-deploy" : "nvm use 6; ln -s /home/josephg/data/sephsplace snapshot; yarn install && pm2 reload ecosystem.json --env production",
+      "post-deploy" : "ln -s /home/josephg/data/sephsplace snapshot; yarn install && pm2 reload ecosystem.json --env production",
       env: {
         "NODE_ENV": "production"
       }
