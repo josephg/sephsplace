@@ -401,7 +401,7 @@ function draw() {
 
     ctx.font = '15px monospace'
     ctx.fillStyle = '#333'
-    ;['Rules:', 'No swasticas', "Buy me dinner before you show me your junk"]
+    ;['Rules:', 'No swastikas', "Buy me dinner before you show me your junk"]
     .forEach((str, i) => { ctx.fillText(str, 0, 1000 + (i+1) * 15) })
 
     if (mode === 'paint' && isInScreen(mouse.tx, mouse.ty)) {
