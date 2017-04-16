@@ -387,13 +387,22 @@ app.post('/sp/edit', (req, res, next) => {
   const ua = req.headers['user-agent']
   const address = req.headers['x-forwarded-for'] || req.connection.remoteAddress
 
-  if (ua === 'python-requests/2.10.0') ban(address)
+  // I don't have anything against python. This was just added to stop a
+  // particular user drawing crap with a botnet. Details here:
+  // https://news.ycombinator.com/item?id=14125518
+  //if (ua === 'python-requests/2.10.0') ban(address)
+ 
   if (banlist.has(address)) return res.end()
 
   const edits = getDef(editsByAddress, address, () => 0)
-  // Rate limited. haha.
-  if (edits > 10) return res.sendStatus(403)
-  editsByAddress.set(address, edits + 1)
+  // Rate limited.
+  //
+  // 50 points per 10 seconds. Drawing in white space costs 2 point. Everything else costs 5 for now.
+  if (edits > 50) return res.sendStatus(403)
+
+  const px = y * 1000 + x
+
+  editsByAddress.set(address, edits + (imgData[px] === 0 ? 2 : 5))
 
   const m = getDef(byUserAgent, ua, () => new Set()).add(address)
   
@@ -403,15 +412,6 @@ app.post('/sp/edit', (req, res, next) => {
   })
 })
 
-
-/*
-setInterval(() => {
-  processEdit(randInt(10), randInt(10), randInt(16))
-  processEdit(randInt(10), randInt(10), randInt(16))
-  processEdit(randInt(10), randInt(10), randInt(16))
-  processEdit(randInt(10), randInt(10), randInt(16))
-}, 10)
-*/
 
 const stats = {sentPackets:0, sentBytes:0, editMessages:0, edits:0}
 
